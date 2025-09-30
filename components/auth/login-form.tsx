@@ -16,9 +16,9 @@ interface LoginFormProps {
 
 export function LoginForm({ onForgotPassword, onRegister }: LoginFormProps) {
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
 
@@ -26,22 +26,45 @@ export function LoginForm({ onForgotPassword, onRegister }: LoginFormProps) {
     e.preventDefault()
     setLoading(true)
     setError("")
+    setSuccess(false)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithOtp({
         email,
-        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
 
       if (error) throw error
 
-      router.push("/dashboard")
-      router.refresh()
+      setSuccess(true)
     } catch (err: any) {
-      setError(err.message || "Error al iniciar sesión")
+      setError(err.message || "Error al enviar el enlace de verificación")
     } finally {
       setLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="bg-white/10 border border-white/20 rounded-lg p-6">
+          <h3 className="text-xl font-semibold text-white mb-2">¡Revisa tu correo!</h3>
+          <p className="text-white/90">
+            Te hemos enviado un enlace de verificación a <strong>{email}</strong>
+          </p>
+          <p className="text-white/80 text-sm mt-2">Haz clic en el enlace para iniciar sesión</p>
+        </div>
+        <Button
+          onClick={() => setSuccess(false)}
+          variant="outline"
+          className="w-full bg-white/10 text-white border-white/20 hover:bg-white/20"
+        >
+          Enviar otro enlace
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -61,29 +84,10 @@ export function LoginForm({ onForgotPassword, onRegister }: LoginFormProps) {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="password" className="text-white">
-          Contraseña
-        </Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="bg-white/90"
-        />
-      </div>
-
       {error && <p className="text-sm text-red-200">{error}</p>}
 
-      <button type="button" onClick={onForgotPassword} className="text-sm text-white hover:underline">
-        ¿Olvidaste tu contraseña?
-      </button>
-
       <Button type="submit" disabled={loading} className="w-full bg-white text-[#880430] hover:bg-white/90">
-        {loading ? "Iniciando..." : "Iniciar Sesión"}
+        {loading ? "Enviando..." : "Enviar enlace de verificación"}
       </Button>
 
       <div className="text-center">
