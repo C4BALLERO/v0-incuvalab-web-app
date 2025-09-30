@@ -20,13 +20,12 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
     nombre: "",
     apellido: "",
     email: "",
-    password: "",
-    confirmPassword: "",
   })
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [acceptPrivacy, setAcceptPrivacy] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
 
@@ -41,12 +40,7 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
     e.preventDefault()
     setLoading(true)
     setError("")
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Las contraseñas no coinciden")
-      setLoading(false)
-      return
-    }
+    setSuccess(false)
 
     if (!acceptTerms || !acceptPrivacy) {
       setError("Debes aceptar los términos y la política de privacidad")
@@ -55,11 +49,11 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      // Send magic link
+      const { data, error: authError } = await supabase.auth.signInWithOtp({
         email: formData.email,
-        password: formData.password,
         options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             nombre_usuario: formData.nombreUsuario,
             nombre: formData.nombre,
@@ -68,18 +62,50 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
         },
       })
 
-      if (error) throw error
+      if (authError) throw authError
 
-      // Create user profile in database
-      if (data.user) {
-        router.push("/dashboard")
-        router.refresh()
+      // Save user data to database
+      const { error: dbError } = await supabase.from("usuario").insert({
+        nombre_usuario: formData.nombreUsuario,
+        nombre: formData.nombre,
+        apellido: formData.apellido,
+        correo: formData.email,
+        contrasenia: "", // Not needed for magic link auth
+        id_rol: 2, // Default user role
+      })
+
+      if (dbError && dbError.code !== "23505") {
+        // Ignore duplicate key errors
+        console.error("[v0] Error saving to database:", dbError)
       }
+
+      setSuccess(true)
     } catch (err: any) {
       setError(err.message || "Error al registrarse")
     } finally {
       setLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="bg-white/10 border border-[#66B5CB]/20 rounded-lg p-6">
+          <h3 className="text-xl font-semibold text-[#66B5CB] mb-2">¡Revisa tu correo!</h3>
+          <p className="text-[#66B5CB]/90">
+            Te hemos enviado un enlace de verificación a <strong>{formData.email}</strong>
+          </p>
+          <p className="text-[#66B5CB]/80 text-sm mt-2">Haz clic en el enlace para completar tu registro</p>
+        </div>
+        <Button
+          onClick={() => setSuccess(false)}
+          variant="outline"
+          className="w-full bg-white/10 text-[#66B5CB] border-[#66B5CB]/20 hover:bg-white/20"
+        >
+          Enviar otro enlace
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -142,38 +168,6 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
           type="email"
           placeholder="nombre@ejemplo.com"
           value={formData.email}
-          onChange={handleChange}
-          required
-          className="bg-white/90"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="password" className="text-[#66B5CB]">
-          Contraseña
-        </Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          placeholder="••••••••"
-          value={formData.password}
-          onChange={handleChange}
-          required
-          className="bg-white/90"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="confirmPassword" className="text-[#66B5CB]">
-          Confirmar Contraseña
-        </Label>
-        <Input
-          id="confirmPassword"
-          name="confirmPassword"
-          type="password"
-          placeholder="••••••••"
-          value={formData.confirmPassword}
           onChange={handleChange}
           required
           className="bg-white/90"

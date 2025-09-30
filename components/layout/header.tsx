@@ -2,10 +2,39 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { getSupabaseBrowserClient } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 
 export function Header() {
   const router = useRouter()
+  const supabase = getSupabaseBrowserClient()
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase.auth])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/")
+    router.refresh()
+  }
 
   return (
     <header className="bg-[#8D8D8D] text-white py-4 px-6">
@@ -25,18 +54,41 @@ export function Header() {
           </Link>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            onClick={() => router.push("/login")}
-            className="bg-white text-[#880430] hover:bg-white/90 transition-colors"
-          >
-            Iniciar Sesión
-          </Button>
-          <Button
-            onClick={() => router.push("/register")}
-            className="bg-[#880430] text-white hover:bg-[#880430]/90 transition-colors"
-          >
-            Registrarse
-          </Button>
+          {!loading && (
+            <>
+              {user ? (
+                <>
+                  <Button
+                    onClick={() => router.push("/dashboard/perfil")}
+                    className="bg-white text-[#880430] hover:bg-white/90 transition-colors"
+                  >
+                    Mi Perfil
+                  </Button>
+                  <Button
+                    onClick={handleSignOut}
+                    className="bg-[#880430] text-white hover:bg-[#880430]/90 transition-colors"
+                  >
+                    Cerrar Sesión
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => router.push("/login")}
+                    className="bg-white text-[#880430] hover:bg-white/90 transition-colors"
+                  >
+                    Iniciar Sesión
+                  </Button>
+                  <Button
+                    onClick={() => router.push("/register")}
+                    className="bg-[#880430] text-white hover:bg-[#880430]/90 transition-colors"
+                  >
+                    Registrarse
+                  </Button>
+                </>
+              )}
+            </>
+          )}
         </div>
       </nav>
     </header>
