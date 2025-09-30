@@ -49,11 +49,10 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
     }
 
     try {
-      // Send magic link
-      const { data, error: authError } = await supabase.auth.signInWithOtp({
+      const { error: authError } = await supabase.auth.signInWithOtp({
         email: formData.email,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             nombre_usuario: formData.nombreUsuario,
             nombre: formData.nombre,
@@ -63,21 +62,6 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
       })
 
       if (authError) throw authError
-
-      // Save user data to database
-      const { error: dbError } = await supabase.from("usuario").insert({
-        nombre_usuario: formData.nombreUsuario,
-        nombre: formData.nombre,
-        apellido: formData.apellido,
-        correo: formData.email,
-        contrasenia: "", // Not needed for magic link auth
-        id_rol: 2, // Default user role
-      })
-
-      if (dbError && dbError.code !== "23505") {
-        // Ignore duplicate key errors
-        console.error("[v0] Error saving to database:", dbError)
-      }
 
       setSuccess(true)
     } catch (err: any) {
