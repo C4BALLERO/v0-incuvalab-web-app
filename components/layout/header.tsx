@@ -12,28 +12,62 @@ export function Header() {
   const supabase = getSupabaseBrowserClient()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [userRole, setUserRole] = useState<number | null>(null)
 
   useEffect(() => {
     // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null)
+
+      if (session?.user) {
+        const { data: userData } = await supabase
+          .from("usuario")
+          .select("id_rol")
+          .eq("correo", session.user.email)
+          .single()
+
+        if (userData) {
+          setUserRole(userData.id_rol)
+        }
+      }
+
       setLoading(false)
     })
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
+
+      if (session?.user) {
+        const { data: userData } = await supabase
+          .from("usuario")
+          .select("id_rol")
+          .eq("correo", session.user.email)
+          .single()
+
+        if (userData) {
+          setUserRole(userData.id_rol)
+        }
+      } else {
+        setUserRole(null)
+      }
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
+  }, [supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
+    setUserRole(null)
     router.push("/")
     router.refresh()
+  }
+
+  const getDashboardLink = () => {
+    if (userRole === 1) return "/admin"
+    return "/dashboard"
   }
 
   return (
@@ -59,10 +93,10 @@ export function Header() {
               {user ? (
                 <>
                   <Button
-                    onClick={() => router.push("/dashboard/perfil")}
+                    onClick={() => router.push(getDashboardLink())}
                     className="bg-white text-[#880430] hover:bg-white/90 transition-colors"
                   >
-                    Mi Perfil
+                    {userRole === 1 ? "Panel Admin" : "Mi Perfil"}
                   </Button>
                   <Button
                     onClick={handleSignOut}

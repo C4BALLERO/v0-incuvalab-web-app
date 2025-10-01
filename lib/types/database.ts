@@ -30,7 +30,7 @@ export interface Proyecto {
   fecha_fin?: string
   fecha_caducacion?: string
   contribuyente_limite?: number
-  estado: "Activo" | "Finalizado" | "Cancelado"
+  estado: "Activo" | "Inactivo" | "En Revisión" | "Finalizado" | "Cancelado"
   fecha_creacion: string
   fecha_modificacion: string
   modificado_por?: number
