@@ -6,21 +6,25 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { Footer } from "@/components/layout/footer"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getSupabaseBrowserClient } from "@/lib/supabase/client"
+import { useToast } from "@/hooks/use-toast"
 
 export default function CrearProyectoPage() {
   const router = useRouter()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     nombre: "",
     descripcionCorta: "",
     descripcionGeneral: "",
-    categoria: "",
+    video: "",
+    imagen: "",
     fechaInicio: "",
     fechaFin: "",
     contribuyenteLimite: "",
@@ -37,146 +41,229 @@ export default function CrearProyectoPage() {
     e.preventDefault()
     setLoading(true)
 
-    // TODO: Submit to database
-    console.log("[v0] Form data:", formData)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("No autenticado")
 
-    setTimeout(() => {
-      setLoading(false)
+      const { data: userData } = await supabase.from("usuario").select("id_user").eq("correo", user.email).single()
+
+      if (!userData) throw new Error("Usuario no encontrado")
+
+      const { error } = await supabase.from("proyecto").insert({
+        nombre: formData.nombre,
+        descripcion_corta: formData.descripcionCorta,
+        descripcion_general: formData.descripcionGeneral,
+        video: formData.video || null,
+        imagen: formData.imagen || null,
+        fecha_inicio: formData.fechaInicio || null,
+        fecha_fin: formData.fechaFin || null,
+        contribuyente_limite: formData.contribuyenteLimite ? Number.parseInt(formData.contribuyenteLimite) : null,
+        estado: "En Revisión",
+        modificado_por: userData.id_user,
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "Proyecto creado",
+        description: "Tu proyecto ha sido enviado para revisión",
+      })
+
       router.push("/dashboard/proyectos")
-    }, 1000)
+      router.refresh()
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo crear el proyecto",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div className="min-h-screen flex flex-col">
       <DashboardHeader />
-      <main className="flex-1 py-12 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-4xl font-serif text-[#880430] mb-2">Crear Nuevo Proyecto</h1>
-            <p className="text-lg text-[#8D8D8D]">Completa la información de tu proyecto sostenible</p>
+      <main className="flex-1 py-12 px-6 bg-gradient-to-br from-[#66B5CB]/10 to-white">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-8 text-center">
+            <h1 className="text-5xl font-serif text-[#880430] mb-4">Crear una Campaña</h1>
+            <p className="text-lg text-[#8D8D8D] max-w-2xl mx-auto">
+              Escribe un título y subtítulo claros que resuman tu proyecto. Se mostrarán en tu página, en el
+              prelanzamiento, en búsquedas, categorías y correos para patrocinadores.
+            </p>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-[#880430]">Información del Proyecto</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="nombre">Nombre del Proyecto *</Label>
-                  <Input
-                    id="nombre"
-                    name="nombre"
-                    value={formData.nombre}
-                    onChange={handleChange}
-                    placeholder="Ej: Energía Solar Comunitaria"
-                    required
-                  />
-                </div>
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left column */}
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="p-6">
+                  <h2 className="text-2xl font-serif text-[#880430] mb-6">Presentación del proyecto</h2>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="nombre">Título del Proyecto *</Label>
+                      <Input
+                        id="nombre"
+                        name="nombre"
+                        value={formData.nombre}
+                        onChange={handleChange}
+                        placeholder="Ej: Un portaminas mínimo y duradero"
+                        required
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="descripcionCorta">Descripción Corta *</Label>
-                  <Input
-                    id="descripcionCorta"
-                    name="descripcionCorta"
-                    value={formData.descripcionCorta}
-                    onChange={handleChange}
-                    placeholder="Breve descripción del proyecto"
-                    maxLength={255}
-                    required
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="descripcionCorta">Descripción Breve *</Label>
+                      <Textarea
+                        id="descripcionCorta"
+                        name="descripcionCorta"
+                        value={formData.descripcionCorta}
+                        onChange={handleChange}
+                        placeholder="Breve descripción del proyecto..."
+                        rows={4}
+                        maxLength={255}
+                        required
+                      />
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
 
-                <div className="space-y-2">
-                  <Label htmlFor="descripcionGeneral">Descripción General *</Label>
-                  <Textarea
-                    id="descripcionGeneral"
-                    name="descripcionGeneral"
-                    value={formData.descripcionGeneral}
-                    onChange={handleChange}
-                    placeholder="Describe detalladamente tu proyecto..."
-                    rows={6}
-                    required
-                  />
-                </div>
+              <Card>
+                <CardContent className="p-6">
+                  <h2 className="text-2xl font-serif text-[#880430] mb-4">Presenta tu proyecto</h2>
+                  <p className="text-[#8D8D8D] mb-4">
+                    El creador debe mostrar con entusiasmo el valor y atractivo del proyecto, definir la misión,
+                    presentar un plan con cronograma claro y transmitir confianza para garantizar un buen uso de los
+                    fondos.
+                  </p>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="video">URL del Video (YouTube)</Label>
+                      <Input
+                        id="video"
+                        name="video"
+                        value={formData.video}
+                        onChange={handleChange}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="categoria">Categoría *</Label>
-                  <Select
-                    value={formData.categoria}
-                    onValueChange={(value) => setFormData((prev) => ({ ...prev, categoria: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona una categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="energia">Energía Renovable</SelectItem>
-                      <SelectItem value="agua">Agua</SelectItem>
-                      <SelectItem value="residuos">Gestión de Residuos</SelectItem>
-                      <SelectItem value="agricultura">Agricultura Sostenible</SelectItem>
-                      <SelectItem value="conservacion">Conservación</SelectItem>
-                      <SelectItem value="educacion">Educación Ambiental</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="imagen">URL de la Imagen</Label>
+                      <Input
+                        id="imagen"
+                        name="imagen"
+                        value={formData.imagen}
+                        onChange={handleChange}
+                        placeholder="https://ejemplo.com/imagen.jpg"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
+            {/* Right column */}
+            <div className="space-y-6">
+              <Card className="bg-[#880430] text-white">
+                <CardContent className="p-6 space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="fechaInicio">Fecha de Inicio</Label>
-                    <Input
-                      id="fechaInicio"
-                      name="fechaInicio"
-                      type="date"
-                      value={formData.fechaInicio}
-                      onChange={handleChange}
-                    />
+                    <Label htmlFor="titulo-preview" className="text-white">
+                      Título
+                    </Label>
+                    <div className="bg-white/10 rounded-lg p-3 min-h-[50px]">
+                      <p className="text-white">{formData.nombre || "Tu título aparecerá aquí"}</p>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="fechaFin">Fecha de Fin</Label>
-                    <Input
-                      id="fechaFin"
-                      name="fechaFin"
-                      type="date"
-                      value={formData.fechaFin}
+                    <Label className="text-white">Descripción general</Label>
+                    <div className="bg-white/10 rounded-lg p-4 min-h-[200px]">
+                      <p className="text-white/90 text-sm">
+                        {formData.descripcionCorta || "Tu descripción breve aparecerá aquí"}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="descripcionGeneral">Descripción Detallada</Label>
+                    <Textarea
+                      id="descripcionGeneral"
+                      name="descripcionGeneral"
+                      value={formData.descripcionGeneral}
                       onChange={handleChange}
+                      placeholder="Describe detalladamente tu proyecto, objetivos, impacto esperado..."
+                      rows={6}
                     />
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="contribuyenteLimite">Límite de Contribuyentes</Label>
-                  <Input
-                    id="contribuyenteLimite"
-                    name="contribuyenteLimite"
-                    type="number"
-                    value={formData.contribuyenteLimite}
-                    onChange={handleChange}
-                    placeholder="Número máximo de contribuyentes"
-                    min="1"
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fechaInicio">Fecha de Inicio</Label>
+                      <Input
+                        id="fechaInicio"
+                        name="fechaInicio"
+                        type="date"
+                        value={formData.fechaInicio}
+                        onChange={handleChange}
+                      />
+                    </div>
 
-                <div className="flex gap-4 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.back()}
-                    className="flex-1 border-[#8D8D8D] text-[#8D8D8D]"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 bg-[#880430] text-white hover:bg-[#880430]/90"
-                  >
-                    {loading ? "Creando..." : "Crear Proyecto"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                    <div className="space-y-2">
+                      <Label htmlFor="fechaFin">Fecha de Fin</Label>
+                      <Input
+                        id="fechaFin"
+                        name="fechaFin"
+                        type="date"
+                        value={formData.fechaFin}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="contribuyenteLimite">Objetivo de Seguidores</Label>
+                    <Input
+                      id="contribuyenteLimite"
+                      name="contribuyenteLimite"
+                      type="number"
+                      value={formData.contribuyenteLimite}
+                      onChange={handleChange}
+                      placeholder="Ej: 120"
+                      min="1"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.back()}
+                  className="flex-1 border-[#8D8D8D] text-[#8D8D8D]"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="flex-1 bg-[#66B5CB] text-white hover:bg-[#66B5CB]/90"
+                >
+                  {loading ? "Creando..." : "Ir a la siguiente sección"}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
       <Footer />
